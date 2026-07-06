@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-// định nghĩa giao tiếp với app manager
+
 typedef enum {
     SRC_UI,
     SRC_NETWORK,
