@@ -23,22 +23,21 @@ void STM32CommTask(void *pvParameters) {
     uint8_t rxBuffer[5];
     uint8_t rxIndex = 0;
 
-    uint8_t buffer[5];
 
     while (1) {
-        if(xQueueReceive(stm32Queue, &outgoingMsg, portMAX_DELAY) == pdTRUE) {
+        if(xQueueReceive(stm32Queue, &outgoingMsg, 0) == pdTRUE) {
             uint8_t cmdByte = 0x00;
             uint8_t dataByte = (uint8_t)outgoingMsg.target_id;
 
-            if((outgoingMsg.command == CMD_TURN_ON_RELAY) == pdTRUE) {
+            if(outgoingMsg.command == CMD_TURN_ON_RELAY)  {
                 cmdByte = 0x01;
-            } else if((outgoingMsg.command == CMD_TURN_OFF_RELAY) == pdTRUE) {
+            } else if(outgoingMsg.command == CMD_TURN_OFF_RELAY)  {
                 cmdByte = 0x02;
-            } else if((outgoingMsg.command == CMD_TURN_ON_MOSFET) == pdTRUE) {
+            } else if(outgoingMsg.command == CMD_TURN_ON_MOSFET)  {
                 cmdByte = 0x03;
-            } else if((outgoingMsg.command == CMD_TURN_OFF_MOSFET) == pdTRUE) {
-                cmdByte = 0x04; 
-            }
+            } else if(outgoingMsg.command == CMD_TURN_OFF_MOSFET)  {
+                cmdByte = 0x04; }
+            
         
          uint8_t txFrame[5] = {
             0xAA, 
@@ -55,8 +54,8 @@ void STM32CommTask(void *pvParameters) {
          while (Serial1.available() > 0){
             uint8_t inByte = Serial1.read();
             
-            if(rxIndex == 0 && inByte == 0xAA) continue;
-            if(rxIndex == 1 && inByte == 0xBB) {rxIndex = 0; continue;}
+            if(rxIndex == 0 && inByte != 0xAA) continue;
+            if(rxIndex == 1 && inByte != 0xBB) {rxIndex = 0; continue;}
 
             rxBuffer[rxIndex++] = inByte;
 
@@ -70,21 +69,20 @@ void STM32CommTask(void *pvParameters) {
 
                     incomingMsg.source = SRC_STM32;
 
-                    if (receivedCMD == 0x03) {
+                    if (receivedCMD == 0x05) {
                         incomingMsg.command = CMD_UPDATE_TEMP_HUMID;
-                        incomingMsg.payload = receivedData * 10; // Đưa vào payload
-                        
-                        // Đẩy vào Queue cho App Manager xử lý
+                        incomingMsg.payload = receivedData * 10; 
+
                         xQueueSend(appManagerQueue, &incomingMsg, 0);
                     }
                 }
                 
-                // Reset bộ đệm để đón Frame tiếp theo
+                
                 rxIndex = 0; 
             }
         }
 
-        // Nhường CPU cho các Task khác trên Core 0 (WiFi, MQTT...)
+        
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

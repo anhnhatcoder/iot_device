@@ -8,7 +8,7 @@ extern QueueHandle_t appManagerQueue;
 void AppManagerTask(void *pvParameters) {
   AppMessage_t incomingMsg;
   while (1) {
-    if (xQueueReceive(appManagerQueue, &incomingMsg, portMAX_DELAY) == pdTRUE) {
+    if (xQueueReceive(appManagerQueue, &incomingMsg, 0) == pdTRUE) {
             
             // Xử lý dựa trên lệnh (Command) nhận được
             switch (incomingMsg.command) {
