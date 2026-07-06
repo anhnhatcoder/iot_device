@@ -1,11 +1,11 @@
 #include "ui.h"
-#include "shared_types.h" // Nhớ tạo file này để định nghĩa AppMessage_t và các Queue
 #include <Arduino.h>
 #include <Wire.h>
 #include "XPowersLib.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
+#include "shared_types.h"
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
