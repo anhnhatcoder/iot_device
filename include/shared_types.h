@@ -27,3 +27,4 @@ typedef struct {
 
 extern QueueHandle_t appManagerQueue;
 extern QueueHandle_t uiQueue;
+extern QueueHandle_t stm32Queue;
