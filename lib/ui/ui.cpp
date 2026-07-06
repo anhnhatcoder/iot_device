@@ -9,9 +9,9 @@
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+// Đảm bảo file logo.c nằm cùng thư mục hoặc trong include
 #include "logo.c" 
 
-// Extern các Queue từ main.cpp hoặc app_manager.cpp
 extern QueueHandle_t appManagerQueue;
 extern QueueHandle_t uiQueue;
 
@@ -42,7 +42,7 @@ XPowersAXP2101 PMU;
 // ==========================================
 enum Page { PAGE_HOME = 0, PAGE_MOSFET = 1, PAGE_RELAY = 2, PAGE_SENSOR = 3 };
 Page currentPage = PAGE_HOME;
-
+bool isMenuVisible = false;
 bool mosfetState[4]   = {false, true, false, false}; 
 float mosfetCurrent[4] = {0.0, 1245.5, 0.0, 0.0}; 
 
@@ -50,8 +50,11 @@ bool relayState[4]  = {false, false, false, false};
 float temp_C        = 30.2;   
 float hum_RH        = 72.4;   
 
+// Trạng thái kết nối WiFi
+bool isWifiConnected = false; 
+
 // ==========================================
-// 3. KHỞI TẠO NGUỒN VÀ MÀN HÌNH (Gộp từ setup cũ)
+// 3. KHỞI TẠO NGUỒN VÀ MÀN HÌNH
 // ==========================================
 void init_power() {
   const uint8_t TCA9554_ADDR = 0x20; 
@@ -91,6 +94,7 @@ void drawPageContent(Page page, int offsetX) {
   }
 
   if (page == PAGE_HOME) {
+    if (isMenuVisible) {
     ui.setTextColor(TFT_BLACK); ui.drawString("IOT MAIN DASHBOARD", offsetX + 242, 37, &fonts::FreeSansBold12pt7b);
     ui.setTextColor(TFT_WHITE); ui.drawString("IOT MAIN DASHBOARD", offsetX + 240, 35, &fonts::FreeSansBold12pt7b);
 
@@ -105,7 +109,7 @@ void drawPageContent(Page page, int offsetX) {
     ui.fillRoundRect(offsetX + 80, 235 + 5, 320, 60, 12, tft.color565(5, 110, 70)); 
     ui.fillRoundRect(offsetX + 80, 235, 320, 60, 12, tft.color565(16, 185, 129)); 
     ui.drawString("3. SENSOR DATA", offsetX + 240, 265, &fonts::FreeSansBold12pt7b);
-  } 
+  } }
   
   else if (page == PAGE_MOSFET) {
     ui.setTextColor(TFT_BLACK); ui.drawString("MOSFET CONTROL", offsetX + 262, 37, &fonts::FreeSansBold12pt7b);
@@ -163,8 +167,8 @@ void drawPageContent(Page page, int offsetX) {
   }
 
   else if (page == PAGE_SENSOR) {
-    ui.setTextColor(TFT_BLACK); ui.drawString("ENVIRONMENT SENSORS", offsetX + 262, 37, &fonts::FreeSansBold12pt7b);
-    ui.setTextColor(TFT_WHITE); ui.drawString("ENVIRONMENT SENSORS", offsetX + 260, 35, &fonts::FreeSansBold12pt7b);
+    ui.setTextColor(TFT_BLACK); ui.drawString("SENSORS", offsetX + 262, 37, &fonts::FreeSansBold12pt7b);
+    ui.setTextColor(TFT_WHITE); ui.drawString("SENSORS", offsetX + 260, 35, &fonts::FreeSansBold12pt7b);
 
     ui.fillRoundRect(offsetX + 50, 110 + 6, 170, 140, 15, tft.color565(150, 20, 20)); 
     ui.fillRoundRect(offsetX + 50, 110, 170, 140, 15, tft.color565(239, 68, 68)); 
@@ -177,15 +181,30 @@ void drawPageContent(Page page, int offsetX) {
     ui.drawString("HUMIDITY", offsetX + 345, 145, &fonts::FreeSansBold9pt7b); 
     ui.drawString(String(hum_RH, 1) + " %", offsetX + 345, 205, &fonts::FreeSansBold18pt7b);
   }
+
+  // --- VẼ TRẠNG THÁI WIFI (GÓC TRÊN CÙNG BÊN PHẢI) ---
+  int wifiX = offsetX + 390; 
+  int wifiY = 35;            
+  
+  if (isWifiConnected) {
+      ui.fillCircle(wifiX, wifiY, 6, tft.color565(16, 185, 129)); // Màu Xanh lá
+      ui.setTextColor(TFT_WHITE);
+      ui.drawString("WIFI", wifiX + 30, wifiY - 2, &fonts::FreeSansBold9pt7b);
+  } else {
+      ui.fillCircle(wifiX, wifiY, 6, tft.color565(239, 68, 68)); // Màu Đỏ
+      ui.setTextColor(tft.color565(150, 150, 150));
+      ui.drawString("NO IP", wifiX + 34, wifiY + 3 , &fonts::FreeSansBold9pt7b);
+  }
 }
 
 // ==========================================
-// 5. HIỆU ỨNG TRƯỢT
+// 5. HIỆU ỨNG TRƯỢT VÀ RENDER
 // ==========================================
 void renderStatic() {
   ui.setSwapBytes(true); 
   ui.pushImage(0, 0, 480, 320, (const uint16_t*)logo_map); 
   ui.setSwapBytes(false);
+  
   drawPageContent(currentPage, 0);
   ui.pushSprite(0, 0);
 }
@@ -203,17 +222,21 @@ void slideToPage(Page newPage, bool slideLeft) {
     drawPageContent(newPage, startX + offset);
 
     ui.pushSprite(0, 0); 
+    
   }
   
   currentPage = newPage;
   renderStatic(); 
+  vTaskDelay(1);
 }
 
+
+
+
 // ==========================================
-// 6. TASK FREERTOS ĐIỀU KHIỂN UI (Thay thế loop cũ)
+// 6. TASK FREERTOS ĐIỀU KHIỂN UI
 // ==========================================
 void UITask(void *pvParameters) {
-  // Khởi tạo phần cứng màn hình
   UI_Init();
   renderStatic(); 
 
@@ -225,25 +248,44 @@ void UITask(void *pvParameters) {
   AppMessage_t outgoingMsg;
 
   while (1) {
-    // --- PHẦN A: LẮNG NGHE DỮ LIỆU TỪ HỆ THỐNG (Không block) ---
+    // --- PHẦN A: LẮNG NGHE DỮ LIỆU TỪ HỆ THỐNG ---
     if (uiQueue != NULL && xQueueReceive(uiQueue, &incomingMsg, 0) == pdTRUE) {
         bool needsRender = false;
 
         switch (incomingMsg.command) {
-            case CMD_UPDATE_TEMP_HUMID:
-                // Giả sử payload chứa nhiệt độ x10 (để tránh truyền float)
+            case CMD_WIFI_STATUS:
+                isWifiConnected = (incomingMsg.payload == 1);
+                needsRender = true; // Yêu cầu vẽ lại để cập nhật đèn
+                break;
+
+            case CMD_UPDATE_TEMP:
                 temp_C = (float)incomingMsg.payload / 10.0;
-                // Nếu muốn truyền cả độ ẩm, bạn có thể thiết kế payload dạng struct hoặc bitshift
                 if (currentPage == PAGE_SENSOR) needsRender = true;
                 break;
-                
+
+            case CMD_UPDATE_HUMID:
+                hum_RH = (float)incomingMsg.payload / 10.0;
+                if (currentPage == PAGE_SENSOR) needsRender = true;
+                break;
+
+            case CMD_SYNC_RELAY_STATUS:
+                if (incomingMsg.target_id >= 0 && incomingMsg.target_id < 4) {
+                    relayState[incomingMsg.target_id] = (incomingMsg.payload == 1);
+                    if (currentPage == PAGE_RELAY) needsRender = true; // Chỉ vẽ lại khi nhận được thư từ STM32
+                }
+                break;
+            case CMD_SYNC_MOSFET_STATUS:
+                if (incomingMsg.target_id >= 0 && incomingMsg.target_id < 4) {
+                    mosfetState[incomingMsg.target_id] = (incomingMsg.payload == 1);
+                    if (currentPage == PAGE_MOSFET) needsRender = true;
+                }
+                break;
             case CMD_SYNC_MOSFET_CURRENT:
                 if (incomingMsg.target_id >= 0 && incomingMsg.target_id < 4) {
                     mosfetCurrent[incomingMsg.target_id] = (float)incomingMsg.payload;
                     if (currentPage == PAGE_MOSFET) needsRender = true;
                 }
                 break;
-                
             default:
                 break;
         }
@@ -273,6 +315,17 @@ void UITask(void *pvParameters) {
         int deltaX = lastX - startX;
         int deltaY = lastY - startY;
 
+        if (deltaY < -60)
+{
+    isMenuVisible = true;
+    renderStatic();
+}
+else if (deltaY > 60)
+{
+    isMenuVisible = false;
+    renderStatic();
+}
+
         if (deltaX < -60 && currentPage != PAGE_HOME) { 
           slideToPage(PAGE_HOME, true); 
         } 
@@ -281,18 +334,42 @@ void UITask(void *pvParameters) {
           int tapX = startX;
           int tapY = startY;
 
+          
+
           if (currentPage != PAGE_HOME) {
             if (tapX > 15 && tapX < 95 && tapY > 15 && tapY < 50) {
               slideToPage(PAGE_HOME, true); 
-              continue; // Nhảy qua vòng lặp tiếp theo
+              continue; 
             }
           }
 
           if (currentPage == PAGE_HOME) {
-            if (tapY > 75 && tapY < 135) slideToPage(PAGE_MOSFET, false); 
-            else if (tapY > 155 && tapY < 215) slideToPage(PAGE_RELAY, false); 
-            else if (tapY > 235 && tapY < 295) slideToPage(PAGE_SENSOR, false);
-          }
+            if (isMenuVisible) {
+            if (tapY > 75 && tapY < 135)
+{
+    ui.fillRoundRect(82,77,316,56,14,tft.color565(8,120,190));
+    ui.pushSprite(0,0);
+    delay(60);
+
+    slideToPage(PAGE_MOSFET,false);
+}
+            else if (tapY > 155 && tapY < 215)
+{
+    ui.fillRoundRect(82,157,316,56,14,tft.color565(200,120,0));
+    ui.pushSprite(0,0);
+    delay(60);
+
+    slideToPage(PAGE_RELAY,false);
+} 
+            else if (tapY > 235 && tapY < 295)
+{
+    ui.fillRoundRect(82,237,316,56,14,tft.color565(0,150,100));
+    ui.pushSprite(0,0);
+    delay(60);
+
+    slideToPage(PAGE_SENSOR,false);
+}
+          }}
           
           else if (currentPage == PAGE_MOSFET) {
             if (tapY > 100 && tapY < 240) {
@@ -303,13 +380,13 @@ void UITask(void *pvParameters) {
               if (tapX > 355 && tapX < 445) mosfetIdx = 3;
 
               if (mosfetIdx != -1) {
-                // 1. Đảo trạng thái hiển thị nội bộ
-                mosfetState[mosfetIdx] = !mosfetState[mosfetIdx];
-                renderStatic(); 
+                //mosfetState[mosfetIdx] = !mosfetState[mosfetIdx];
+                //renderStatic(); 
 
-                // 2. Báo cho App Manager
+               bool targetState = !mosfetState[mosfetIdx]; 
+
                 outgoingMsg.source = SRC_UI;
-                outgoingMsg.command = mosfetState[mosfetIdx] ? CMD_TURN_ON_MOSFET : CMD_TURN_OFF_MOSFET;
+                outgoingMsg.command = targetState ? CMD_TURN_ON_MOSFET : CMD_TURN_OFF_MOSFET;
                 outgoingMsg.target_id = mosfetIdx;
                 if (appManagerQueue != NULL) xQueueSend(appManagerQueue, &outgoingMsg, 0);
               }
@@ -325,13 +402,13 @@ void UITask(void *pvParameters) {
               if (tapX > 355 && tapX < 445)  relayIdx = 3;
 
               if (relayIdx != -1) {
-                // 1. Đảo trạng thái hiển thị nội bộ
-                relayState[relayIdx] = !relayState[relayIdx];
-                renderStatic(); 
+                //relayState[relayIdx] = !relayState[relayIdx];
+                //renderStatic(); 
 
-                // 2. Báo cho App Manager
+               bool targetState = !relayState[relayIdx]; // Tính toán trạng thái muốn bật
+                
                 outgoingMsg.source = SRC_UI;
-                outgoingMsg.command = relayState[relayIdx] ? CMD_TURN_ON_RELAY : CMD_TURN_OFF_RELAY;
+                outgoingMsg.command = targetState ? CMD_TURN_ON_RELAY : CMD_TURN_OFF_RELAY;
                 outgoingMsg.target_id = relayIdx;
                 if (appManagerQueue != NULL) xQueueSend(appManagerQueue, &outgoingMsg, 0);
               }
@@ -342,7 +419,6 @@ void UITask(void *pvParameters) {
     }
     
     // --- PHẦN C: NHƯỜNG CPU ---
-    // Delay 20ms cho mỗi vòng quét cảm ứng/vẽ để không chiếm dụng 100% Core
     vTaskDelay(pdMS_TO_TICKS(20)); 
   }
 }

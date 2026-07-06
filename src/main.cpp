@@ -34,7 +34,7 @@ Serial.begin(115200);
     xTaskCreatePinnedToCore(STM32CommTask, "STM32CommTask", 4096, NULL, 3, NULL, 0);
     xTaskCreatePinnedToCore(WiFiTask, "WiFiTask", 4096, NULL, 2, NULL, 0);
     xTaskCreatePinnedToCore(MQTTTask, "MQTTTask", 8192, NULL, 2, NULL, 0);
-    xTaskCreatePinnedToCore(UITask, "UITask", 8192, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(UITask, "UITask", 32768, NULL, 1, NULL, 1);
 }
 
 void loop() {
