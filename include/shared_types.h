@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-
+#include <freertos/event_groups.h>
 
 typedef enum {
     SRC_UI,
@@ -28,3 +28,7 @@ typedef struct {
 extern QueueHandle_t appManagerQueue;
 extern QueueHandle_t uiQueue;
 extern QueueHandle_t stm32Queue;
+extern QueueHandle_t networkQueue;
+extern EventGroupHandle_t networkEventGroup;
+
+#define WIFI_CONNECTED_BIT (1 << 0)
