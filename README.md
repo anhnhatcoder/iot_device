@@ -1,4 +1,4 @@
-content = """# 🌿 ESP32 Smart Garden Gateway (IoT Firmware)
+ESP32 Smart Gateway (IoT Firmware)
 
 ![Platform](https://img.shields.io/badge/Platform-ESP32-blue)
 ![Framework](https://img.shields.io/badge/Framework-Arduino_Core-teal)
