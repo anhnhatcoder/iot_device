@@ -47,3 +47,9 @@ The firmware Mediator pattern is centered around the `AppManagerTask`, ensuring 
 ├── include/
 │   ├── secrets.h             # (REQUIRED) AWS X.509 Certificates and Keys
 │   └── logo.c                # Splash screen image map
+```
+## Video Test
+
+https://github.com/user-attachments/assets/723127d1-1547-4209-b33d-34788b1c2fac
+
+
