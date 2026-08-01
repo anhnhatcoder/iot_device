@@ -50,6 +50,10 @@ The firmware Mediator pattern is centered around the `AppManagerTask`, ensuring 
 ```
 ## Video Test
 
+
+https://github.com/user-attachments/assets/78f62765-a33d-4f80-b5c6-fda78b4a8768
+
+
 https://github.com/user-attachments/assets/723127d1-1547-4209-b33d-34788b1c2fac
 
 
